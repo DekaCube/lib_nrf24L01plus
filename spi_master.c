@@ -27,14 +27,16 @@ unsigned char flip(unsigned char var){
 }
 
 void spi_init(){
-    P1DIR = MOSI|SCLK|NSS; //Set Outputs for SPI
-    P1DIR &= ~MISO; // Set Input Pin for SPI
-    P1OUT |= NSS; //Set NSS high for SPI
+    P2DIR |= MOSI|SCLK|NSS;
+    P2DIR &= ~MISO;
+    P2OUT |= NSS; //Set NSS high for RF
+    __delay_cycles(100); //Wait for device to be fully powered down
+
 }
 
 void spi_transmit(unsigned char *txbuff,
                   unsigned char numb,unsigned char* rxbuff){
-    P1OUT &= ~NSS; //Set Slave Select
+    P2OUT &= ~NSS; //Set Slave Select
     char j = 0;
     for(j = 0;j < numb;j++){ //Loop for each byte
         char i = 0;
@@ -43,25 +45,24 @@ void spi_transmit(unsigned char *txbuff,
         TX = flip(TX); //Flip the byte, sending MSB first
         for(i = 0;i < 8;i++){ //Loop for software acting as shift registers to RX/TX
             if(TX & 0b00000001){ //Send 1 or 0
-                P1OUT |= MOSI;}
+                P2OUT |= MOSI;}
             else{
-                P1OUT &= ~MOSI;
+                P2OUT &= ~MOSI;
             }
             //Change this to suit your needs
-            //__delay_cycles(50); //Uncomment this delay to wait for slower spi devices or bit-banged spi devices
-            P1OUT |= SCLK; //RAISE CLOCK TO START TRANSFER
-            //__delay_cycles(100); // wait again (change as needed)
-            RXBUFFER = (P1IN & MISO) >> 6; //READ PIN AND ADD TO BUFFER
+            __delay_cycles(50); //Wait a bit for slower SPI controls, especially a bit banged slave;
+            P2OUT |= SCLK; //RAISE CLOCK TO START TRANSFER
+            __delay_cycles(100); // wait again (change as needed)
+            RXBUFFER  = (P2IN & MISO) ? 1 : 0;
             if(RXBUFFER){rxbuff[j] |= RXBUFFER;}
             if(!RXBUFFER){rxbuff[j] = rxbuff[j];}
             if(i < 7){ //Shift the buffer if appropriate
                 rxbuff[j] = rxbuff[j] << 1;}
-            P1OUT &= ~SCLK; //lower sclock to prepare for next transaction
+            P2OUT &= ~SCLK; //lower sclock to prepare for next transaction
             TX = TX >> 1; //Shift next bit for transmission
         }
     }
-    P1OUT |= NSS; //Set Slave Select High to End Transaction
-    __delay_cycles(100);
+    P2OUT |= NSS; //Set Slave Select High to End Transaction
     return;
 
 
